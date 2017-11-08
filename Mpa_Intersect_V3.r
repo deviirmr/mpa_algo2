@@ -1,7 +1,8 @@
-#An algorithm to compute areas of geomorphic features in an EEZ or ECOREGION area and in its intersecting Marine Protected Areas
-#(MPAs). For more detail about algorithm and its input setting can be found here: https://goo.gl/TiDhjq
+#The algorithm will perform an intersection operation and compute the intersected area for each feature based 
+#on user inputs. If user will assign a url in MPA_Shapefile_Url  text box then algorithm will avoid the other 
+#two inputs of Marine_Boundary and Region_Id options.  Some more text will be added….
 
-#Script Name: Mpa_Intersect_V3.
+#Script Name: Mpa_Intersect_V3_2.
 #Category: BLUEBRIDGE PROJECT VRE
 #R-Version:R 3.3.0  
 #
@@ -9,6 +10,7 @@
 #   Emmanuel Blondel (FAO),
 #   Levi Westerveld (UNEP GRID-ARENDAL)
 #   Debhasish Bhakta (UNEP GRID-ARENDAL)
+
 
 
 #=============================================================================
@@ -87,7 +89,7 @@ featurelayers <- c("reefs","seamounts", "guyots", "canyons", "ridges",
                    "plateaus", "spreading_ridges", "rift_valleys",
                    "glacial_troughs", "shelf_valleys", "trenches",
                    "troughs", "terraces", "fans", "rises",
-                   "bridges","escarpments")
+                   "bridges","escarpments","seagrass","mangroves")
 gtypes <- c(baselayers, featurelayers)
 
 #list of geomorphic types for which bbox should be ignored
@@ -360,6 +362,25 @@ bbxPolygon = function(bbx){
 #=============================================================================
 # BUSINESS ALGORITHM
 #=============================================================================
+#EZZ id
+#Region_Id = "20083.0000000" #20083.0000000#"20083"
+#"5686"#--EZZ comple
+#"5677"--EZZ simple 
+#"8456"
+#"5677"
+
+#ECO id
+#Region_Id =  "49000"
+#Marine_Boundary ="EEZ"
+#Marine_Boundary ="ECOREGION"
+
+#MPA_Shapefile = "~/data/shp/greek/Greek_MPAs.zip"
+#MPA_Shapefile_Url = "https://goo.gl/nrS52N"
+#MPA_Shapefile_Url = "https://goo.gl/gKDfm4"
+
+#Selected_Data_Feature = "shelf,slope,abyss,hadal,seamounts,guyots,canyons,ridges"
+
+#Selected_Data_Feature = "canyons,shelf,slope,abyss,hadal"
 
 #check the array for Data Feature
 if(Selected_Data_Feature != "NA" && all((Selected_Data_Feature = unlist(strsplit(Selected_Data_Feature,","))) %in% gtypes))
@@ -375,6 +396,8 @@ if(Selected_Data_Feature != "NA" && all((Selected_Data_Feature = unlist(strsplit
 
 ## identify the combination switchNo for intersection####
 #variable to store intersection pattern
+#switchNo= "0000"
+
 if(MPA_Shapefile_Url == "https://absences.zip" && Marine_Boundary =="EEZ" && Region_Id != "NA")
 {
   #intersection bwt EEZ  and predefine Geomorphicfeature
@@ -387,7 +410,7 @@ if(MPA_Shapefile_Url == "https://absences.zip" && Marine_Boundary =="EEZ" && Reg
   
 }else if(MPA_Shapefile_Url != "https://absences.zip" ){
   
-  #intersection bwt  user define MPA  and predefine Geomorphic feature
+  #intersection bwt  user define MPA  and predefine Geomorphicfeature
   #regardless of Marine_Boundary and Region_Id
   
   switchNo ="1003"
@@ -401,14 +424,15 @@ if(MPA_Shapefile_Url == "https://absences.zip" && Marine_Boundary =="EEZ" && Reg
 }
 
 
-# Reading and fetching require files for intersection
+# Reading or fetching require files for intersection
 switch(switchNo,
-            
+       
+       
        "1001" = {
          
          #fetch the area of EEZ
          Region_Area = fetchFeatures(baseUrl = "http://paim.d4science.org/geoserver/W_mpa/wms?",
-                                     typeName = "W_mpa:eez",filter = sprintf("mrgid_eez = '%s'", Region_Id, verbose = debugMode) )
+                                     typeName = "W_mpa:eez_split1",filter = sprintf("mrgid = '%s'", Region_Id, verbose = debugMode) )
          
          
          getCol =c('gml_id',"geoname","mrgid")
@@ -429,7 +453,7 @@ switch(switchNo,
          
          Marine_Boundary = fetchFeatures(
            baseUrl = "http://paim.d4science.org/geoserver/W_mpa/wms?",
-           typeName = "W_mpa:intersect_mpa_eez_v1",
+           typeName = "W_mpa:intersect_mpa_eez_split1",
            filter = sprintf("mrgid_eez = '%s'", Region_Id, verbose = debugMode))
          
          
@@ -486,7 +510,7 @@ switch(switchNo,
          
          #fetch the area of ecoregion
          Region_Area = fetchFeatures(baseUrl = "http://paim.d4science.org/geoserver/W_mpa/wms?",
-                                     typeName = "W_mpa:marine_ecoregions",filter = sprintf("ecoid = '%s'", Region_Id, verbose = debugMode) )
+                                     typeName = "W_mpa:marine_ecoregions_split1",filter = sprintf("ecoid = '%s'", Region_Id, verbose = debugMode) )
          
          getCol =c('gml_id',"ecoregion","ecoid")
          Region_Area@data = Region_Area@data[,getCol]
@@ -508,7 +532,7 @@ switch(switchNo,
          Marine_Boundary = fetchFeatures(
            baseUrl = "http://paim.d4science.org/geoserver/W_mpa/ows?",
            #typeName = "W_mpa:union_edit_dis&propertyName=the_geom,name,ecoid,wdpaid",
-           typeName = "W_mpa:intersect_mpa_marine_ecoregions_v1",
+           typeName = "W_mpa:intersect_mpa_marine_ecoregions_v1_split1",
            filter = sprintf("ecoid = '%s'", Region_Id, verbose = debugMode))
          
          
@@ -663,6 +687,12 @@ switch(switchNo,
          colnames(agg) <- c("name","gtype","type","area")
          
          agg = tidyr::spread(data = agg, key ="gtype" , value = "area")
+         
+         
+           #agg ezz/ecoregion tile
+         Marine_Surface <- aggregate( Marine_Surface$surface,  by=list(name=Marine_Surface$name),  FUN="sum")
+         colnames(Marine_Surface)=c("name","surface")
+         
          
         #merge the require surface
          agg = merge(agg,Marine_Surface,all=TRUE,by="name")
